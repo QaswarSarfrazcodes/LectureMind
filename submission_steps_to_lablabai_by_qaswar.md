@@ -120,7 +120,9 @@ https://github.com/QaswarSarfrazcodes/LectureMind/blob/main/presentation_slides.
 ```
 
 #### ⑨ Video Demo URL
-- Apni YouTube (Unlisted) ya Loom video ka link paste karein jo aapne Step 1 me upload ki.
+```text
+https://youtu.be/pFEAF-_5cEw
+```
 
 ---
 

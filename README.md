@@ -20,7 +20,8 @@
 </p>
 
 <p align="center">
-  🚀 <strong>Live Demo:</strong> <a href="https://qaswarsarfrazcodes.github.io/LectureMind/">https://qaswarsarfrazcodes.github.io/LectureMind/</a>
+  🚀 <strong>Live Demo:</strong> <a href="https://qaswarsarfrazcodes.github.io/LectureMind/">https://qaswarsarfrazcodes.github.io/LectureMind/</a> &nbsp;|&nbsp;
+  🎬 <strong>Video Demo:</strong> <a href="https://youtu.be/pFEAF-_5cEw">https://youtu.be/pFEAF-_5cEw</a>
 </p>
 
 ---
