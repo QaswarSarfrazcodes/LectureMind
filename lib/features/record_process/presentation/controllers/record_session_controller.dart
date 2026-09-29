@@ -17,6 +17,7 @@ import '../../../../shared_models/quiz.dart';
 import '../../data/audio_recording_service.dart';
 
 import '../../../../core/services/subject_classifier_service.dart';
+import '../../../../core/services/mind_map_synthesizer.dart';
 
 enum RecordStatus { idle, recording, reviewingTranscript, processing, completed, error }
 
@@ -476,89 +477,47 @@ class RecordSessionController extends StateNotifier<RecordSessionState> {
       }
     }
 
-    // Dynamic content extraction if AI was unavailable (Zero generic placeholders!)
+    // Dynamic content extraction using MindMapSynthesizer (100% Speech Coverage!)
     if (sections.isEmpty) {
-      final sentences = transcript
-          .split(RegExp(r'(?<=[.!?۔\n])\s+'))
-          .map((s) => s.trim())
-          .where((s) => s.length > 8)
-          .toList();
-
-      final bulletItems = <NoteBullet>[];
-      for (int i = 0; i < sentences.length && i < 6; i++) {
-        final sentence = sentences[i];
-        final words = sentence.split(' ');
-        final point = words.take(6).join(' ');
-        bulletItems.add(NoteBullet(
-          point: point,
-          explanation: sentence,
-        ));
+      final synth = MindMapSynthesizer.synthesizeFullNotesJson(
+        transcript: transcript,
+        customTitle: title,
+        isUrdu: lang == Language.urdu,
+      );
+      title = synth['title'] as String?;
+      summary = synth['summary'] as String? ?? transcript;
+      final rawHeadings = synth['headings'] as List?;
+      if (rawHeadings != null) {
+        sections = rawHeadings
+            .whereType<Map<String, dynamic>>()
+            .map((h) => NoteSection.fromJson(h))
+            .toList();
       }
-
-      final cleanText = transcript
-          .replaceAll(
-              RegExp(
-                  r'\b(hello|hi|hey|ok|okay|welcome|today|we are|teaching you|this is the subject of|this is the)\b',
-                  caseSensitive: false),
-              '')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-      final words = cleanText.split(' ').where((w) => w.length > 2).toList();
-      final derivedTitle = title ??
-          (words.isNotEmpty
-              ? words
-                  .take(5)
-                  .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
-                  .join(' ')
-              : 'Lecture: ${DateTime.now().toLocal().toString().split(' ')[0]}');
-      title = derivedTitle;
-      summary = sentences.isNotEmpty
-          ? sentences.take(2).join(' ')
-          : transcript;
-
-      sections = [
-        NoteSection(
-          title: title,
-          body: transcript,
-          bullets: bulletItems.map((b) => b.point).toList(),
-          bulletItems: bulletItems,
-          keyTerms: sentences
-              .expand((s) => s.split(' '))
-              .where((w) => w.length > 5)
-              .take(4)
-              .toList(),
-          aiSynthesis:
-              'Key concepts synthesized directly from the spoken audio.',
-        ),
-      ];
+      final mm = synth['mind_map'] as Map<String, dynamic>?;
+      if (mm != null && mm['nodes'] is List) {
+        nodes = (mm['nodes'] as List)
+            .whereType<Map<String, dynamic>>()
+            .map((n) => MindMapNode.fromJson(n))
+            .toList();
+      }
     }
 
     title ??= 'Lecture: ${DateTime.now().toLocal().toString().split(' ')[0]}';
     if (summary.isEmpty) {
       summary =
-          sections.first.body.isNotEmpty ? sections.first.body : transcript;
+          sections.isNotEmpty && sections.first.body.isNotEmpty
+              ? sections.first.body
+              : transcript;
     }
 
-    // Multi-tier Mind Map guaranteed from the actual lecture content
-    if (nodes.isEmpty || nodes.length < 3) {
-      nodes = [
-        MindMapNode(id: 'root', label: title, tier: 0),
-        for (int i = 0; i < sections.length; i++) ...[
-          MindMapNode(
-            id: 'sec_$i',
-            label: sections[i].title,
-            parentId: 'root',
-            tier: 1,
-          ),
-          for (int j = 0; j < sections[i].bulletItems.length; j++)
-            MindMapNode(
-              id: 'b_${i}_$j',
-              label: sections[i].bulletItems[j].point,
-              parentId: 'sec_$i',
-              tier: 2,
-            ),
-        ],
-      ];
+    // Comprehensive Multi-Tier Conceptual Knowledge Graph (16-28 Nodes)
+    // Guarantee that 100% of the speech transcript is deeply mapped
+    if (nodes.length < 10) {
+      nodes = MindMapSynthesizer.synthesizeNodes(
+        title: title,
+        transcript: transcript,
+        sections: sections,
+      );
     }
 
     final lectureId = 'lec_${DateTime.now().millisecondsSinceEpoch}';

@@ -5,6 +5,7 @@ import '../config/app_secrets.dart';
 import '../error/failures.dart';
 import '../../shared_models/language.dart';
 import '../utils/prompt_builder.dart';
+import '../services/mind_map_synthesizer.dart';
 
 /// Groq LLM client for Llama 3.3 70b reasoning per `api.md` §2.
 class GroqClient {
@@ -377,85 +378,15 @@ class GroqClient {
       lectureTitle = isUrdu ? 'تعلیمی لیکچر خلاصہ' : 'Academic Lecture Synthesis';
     }
 
-    // ── Dynamic Notes & Mind Map Generation ─────────────────────────────────
+    // ── Dynamic Notes & Mind Map Generation (100% Speech Coverage) ─────────
     if (taskType == AiTaskType.notesGeneration ||
         (jsonMode && (userContent.toLowerCase().contains('transcript') || userContent.toLowerCase().contains('structure')))) {
-      final summary = sentences.length >= 2
-          ? sentences.take(2).join(' ')
-          : (clean.isNotEmpty ? clean : (isUrdu ? 'لیکچر کے اہم نکات کا تفصیلی جائزہ' : 'Comprehensive breakdown of topics covered in this lecture.'));
-
-      // Divide sentences into 2 or 3 thematic sections
-      final chunkCount = (sentences.length / 3).clamp(1, 3).toInt();
-      final headings = <Map<String, dynamic>>[];
-      final mindMapNodes = <Map<String, dynamic>>[];
-
-      int sIndex = 0;
-      for (int i = 0; i < chunkCount; i++) {
-        final secSentences = <String>[];
-        while (sIndex < sentences.length && secSentences.length < 3) {
-          secSentences.add(sentences[sIndex]);
-          sIndex++;
-        }
-        if (secSentences.isEmpty && sIndex < sentences.length) {
-          secSentences.add(sentences[sIndex++]);
-        }
-        if (secSentences.isEmpty && sentences.isNotEmpty) {
-          secSentences.add(sentences[0]);
-        }
-
-        final secWords = secSentences.join(' ').split(' ').where((w) => w.length > 3).toList();
-        final secTitleWords = secWords.take(4).map((w) => w.length > 1 ? '${w[0].toUpperCase()}${w.substring(1)}' : w).join(' ');
-        final secTitle = secTitleWords.isNotEmpty ? '${i + 1}. $secTitleWords' : '${i + 1}. Core Concept ${i + 1}';
-
-        final secBody = secSentences.isNotEmpty ? secSentences.join(' ') : 'Key discussions and analytical insights.';
-        final bullets = secSentences.map((s) => s.length > 80 ? '${s.substring(0, 77)}...' : s).toList();
-        final keyTerms = secWords.take(3).toList();
-
-        headings.add({
-          'title': secTitle,
-          'body': secBody,
-          'bullets': bullets.isNotEmpty ? bullets : ['Critical analysis of lecture principles', 'Theoretical implications and framework'],
-          'key_terms': keyTerms.isNotEmpty ? keyTerms : ['Analysis', 'Concept'],
-        });
-
-        // Add to mind map
-        final secId = '${i + 1}';
-        mindMapNodes.add({
-          'id': secId,
-          'label': secTitleWords.isNotEmpty ? secTitleWords : 'Topic ${i + 1}',
-          'parent': 'center',
-        });
-
-        // Add subnodes for this section (4-tier hierarchy)
-        for (int k = 0; k < keyTerms.length && k < 2; k++) {
-          final leafId = '${secId}_$k';
-          mindMapNodes.add({
-            'id': leafId,
-            'label': keyTerms[k],
-            'parent': secId,
-          });
-          if (bullets.isNotEmpty && k < bullets.length) {
-            final bulletWord = bullets[k].split(' ').take(3).join(' ');
-            if (bulletWord.isNotEmpty) {
-              mindMapNodes.add({
-                'id': '${leafId}_sub',
-                'label': bulletWord,
-                'parent': leafId,
-              });
-            }
-          }
-        }
-      }
-
-      return jsonEncode({
-        'title': lectureTitle,
-        'summary': summary,
-        'headings': headings,
-        'mind_map': {
-          'center': lectureTitle,
-          'nodes': mindMapNodes,
-        }
-      });
+      final synthesized = MindMapSynthesizer.synthesizeFullNotesJson(
+        transcript: transcript,
+        customTitle: null,
+        isUrdu: isUrdu,
+      );
+      return jsonEncode(synthesized);
     }
 
     // ── Dynamic Socratic Quiz Generation ────────────────────────────────────

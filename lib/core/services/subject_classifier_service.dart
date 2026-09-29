@@ -50,6 +50,9 @@ class DomainClassificationResult {
 class SubjectClassifierService {
   const SubjectClassifierService();
 
+  static List<String> domainKeywordsFor(AcademicDomain domain) =>
+      _domainKeywords[domain] ?? const [];
+
   static const Map<AcademicDomain, List<String>> _domainKeywords = {
     AcademicDomain.computerScience: [
       'algorithm', 'code', 'software', 'programming', 'database', 'sql', 'api',

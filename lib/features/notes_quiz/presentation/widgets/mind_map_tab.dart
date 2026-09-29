@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/services/web_speech/web_speech.dart';
+import '../../../../core/services/mind_map_synthesizer.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_neumorphic.dart';
@@ -59,7 +60,6 @@ class _MindMapTabState extends ConsumerState<MindMapTab> {
           mimeType: mimeType,
         );
         if (!downloaded) {
-          // Fallback
           await Printing.sharePdf(bytes: imgBytes, filename: fileName);
         }
       } else {
@@ -108,26 +108,16 @@ class _MindMapTabState extends ConsumerState<MindMapTab> {
       return const Center(child: Text('No mind map available.'));
     }
 
-    final rawNodes = lecture.mindMapNodes.isNotEmpty
+    // Always guarantee a rich multi-tier knowledge graph covering 100% of speech
+    final rawNodes = (lecture.mindMapNodes.isNotEmpty && lecture.mindMapNodes.length >= 8)
         ? lecture.mindMapNodes
-        : [
-            MindMapNode(id: 'root', label: lecture.title, tier: 0),
-            for (int i = 0; i < lecture.sections.length; i++) ...[
-              MindMapNode(
-                id: 'sec_$i',
-                label: lecture.sections[i].title,
-                parentId: 'root',
-                tier: 1,
-              ),
-              for (int j = 0; j < lecture.sections[i].bulletItems.length; j++)
-                MindMapNode(
-                  id: 'b_${i}_$j',
-                  label: lecture.sections[i].bulletItems[j].point,
-                  parentId: 'sec_$i',
-                  tier: 2,
-                ),
-            ],
-          ];
+        : MindMapSynthesizer.synthesizeNodes(
+            title: lecture.title,
+            transcript: lecture.sections
+                .map((s) => '${s.title}. ${s.body} ${s.bullets.join(". ")}')
+                .join(' '),
+            sections: lecture.sections,
+          );
 
     return Column(
       children: [
@@ -165,7 +155,11 @@ class _MindMapTabState extends ConsumerState<MindMapTab> {
                         const SizedBox(width: 8),
                         Container(width: 7, height: 7, decoration: const BoxDecoration(color: AppColors.crimsonRed, shape: BoxShape.circle)),
                         const SizedBox(width: 4),
-                        Text('Concepts', style: AppTextStyles.caption(scheme.onSurfaceVariant).copyWith(fontSize: 11)),
+                        Text('Core & Pillars', style: AppTextStyles.caption(scheme.onSurfaceVariant).copyWith(fontSize: 11)),
+                        const SizedBox(width: 10),
+                        Container(width: 7, height: 7, decoration: const BoxDecoration(color: Color(0xFF2563EB), shape: BoxShape.circle)),
+                        const SizedBox(width: 4),
+                        Text('Concepts & Facts', style: AppTextStyles.caption(scheme.onSurfaceVariant).copyWith(fontSize: 11)),
                         const SizedBox(width: 10),
                         Container(width: 7, height: 7, decoration: const BoxDecoration(color: Color(0xFFF59E0B), shape: BoxShape.circle)),
                         const SizedBox(width: 4),
@@ -216,15 +210,15 @@ class _MindMapTabState extends ConsumerState<MindMapTab> {
         // ── Interactive Aligned Canvas ───────────────────────────────────────
         Expanded(
           child: InteractiveViewer(
-            minScale: 0.25,
-            maxScale: 4.0,
-            boundaryMargin: const EdgeInsets.all(400),
+            minScale: 0.2,
+            maxScale: 4.5,
+            boundaryMargin: const EdgeInsets.all(500),
             child: Center(
               child: RepaintBoundary(
                 key: _boundaryKey,
                 child: Container(
-                  width: 2200,
-                  height: 1600,
+                  width: 2500,
+                  height: 1900,
                   color: isDark ? NeuColors.darkCanvas : NeuColors.lightCanvas,
                   child: CustomPaint(
                     painter: _HierarchicalMindMapPainter(
@@ -271,8 +265,8 @@ class _HierarchicalMindMapPainter extends CustomPainter {
     // 1. Draw subtle blueprint dot grid
     final dotPaint = Paint()
       ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05);
-    for (double x = 35; x < size.width; x += 35) {
-      for (double y = 35; y < size.height; y += 35) {
+    for (double x = 40; x < size.width; x += 40) {
+      for (double y = 40; y < size.height; y += 40) {
         canvas.drawCircle(Offset(x, y), 1.2, dotPaint);
       }
     }
@@ -287,14 +281,18 @@ class _HierarchicalMindMapPainter extends CustomPainter {
       orElse: () => MindMapNode(id: 'root', label: lectureTitle, tier: 0),
     );
 
-    // 3. Identify Tier 1 pillars (direct children of root)
+    // 3. Identify Tier 1 pillars (direct children of root, excluding expansions)
     final pillars = nodes.where((n) {
       if (n.id == root.id) return false;
+      if (n.isExpansion) return false;
       return n.parentId == root.id ||
           n.parentId == 'center' ||
           n.parentId == null ||
           n.tier == 1;
     }).toList();
+
+    // Expansion nodes (attached to root)
+    final expansions = nodes.where((n) => n.isExpansion).toList();
 
     // Map each pillar ID to an assigned theme color
     final Map<String, Color> pillarColors = {};
@@ -303,39 +301,14 @@ class _HierarchicalMindMapPainter extends CustomPainter {
     }
 
     final Map<String, Offset> nodePositions = {root.id: center};
-    const double pillarRadius = 360.0;
-
-    // Group remaining nodes by pillar parent
-    final Map<String, List<MindMapNode>> pillarChildren = {};
-    for (final p in pillars) {
-      pillarChildren[p.id] = [];
-    }
-
-    for (final n in nodes) {
-      if (n.id == root.id || pillars.contains(n)) continue;
-      if (n.parentId != null && pillarChildren.containsKey(n.parentId)) {
-        pillarChildren[n.parentId]!.add(n);
-      } else {
-        // Balance across pillars
-        String? targetPillar;
-        int minCount = 9999;
-        for (final p in pillars) {
-          final count = pillarChildren[p.id]!.length;
-          if (count < minCount) {
-            minCount = count;
-            targetPillar = p.id;
-          }
-        }
-        if (targetPillar != null) {
-          pillarChildren[targetPillar]!.add(n);
-        }
-      }
-    }
+    const double pillarRadius = 350.0;
+    const double subRadius = 600.0;
+    const double leafRadius = 840.0;
 
     final int numPillars = math.max(1, pillars.length);
     final double sectorAngle = (2 * math.pi) / numPillars;
 
-    // 4. Calculate collision-free aligned positions & draw connections
+    // 4. Calculate aligned positions & draw connections
     for (int i = 0; i < numPillars; i++) {
       final p = pillars[i];
       final pAngle = sectorAngle * i - (math.pi / 2);
@@ -364,86 +337,159 @@ class _HierarchicalMindMapPainter extends CustomPainter {
         );
       canvas.drawPath(rootPath, rootEdgePaint);
 
-      // Children strictly aligned within this pillar's angular sector
-      final children = pillarChildren[p.id] ?? [];
-      final int cCount = children.length;
-      final double childSpread = sectorAngle * 0.76;
+      // Find direct children of this pillar (Tier 2 sub-concepts)
+      final subConcepts = nodes
+          .where((n) => n.parentId == p.id && !n.isExpansion && n.id != root.id)
+          .toList();
 
-      for (int j = 0; j < cCount; j++) {
-        final child = children[j];
-        final childAngle = cCount == 1
+      final int sCount = subConcepts.length;
+      final double subSpread = sectorAngle * 0.75;
+
+      for (int j = 0; j < sCount; j++) {
+        final sub = subConcepts[j];
+        final subAngle = sCount == 1
             ? pAngle
-            : (pAngle - childSpread / 2) + (childSpread / (cCount - 1)) * j;
+            : (pAngle - subSpread / 2) + (subSpread / (sCount - 1)) * j;
 
-        // Alternate radii across orbital rings (560 vs 740) so adjacent nodes never collide
-        final double effectiveRadius =
-            cCount <= 1 ? 620.0 : ((j % 2 == 0) ? 560.0 : 740.0);
-
-        final childPos = Offset(
-          center.dx + effectiveRadius * math.cos(childAngle),
-          center.dy + effectiveRadius * math.sin(childAngle),
+        final subPos = Offset(
+          center.dx + subRadius * math.cos(subAngle),
+          center.dy + subRadius * math.sin(subAngle),
         );
-        nodePositions[child.id] = childPos;
+        nodePositions[sub.id] = subPos;
 
         // Draw curved connection from Pillar to Sub-concept
-        final childEdgePaint = Paint()
-          ..color = pColor.withValues(alpha: isDark ? 0.45 : 0.35)
-          ..strokeWidth = 2.2
+        final subEdgePaint = Paint()
+          ..color = pColor.withValues(alpha: isDark ? 0.5 : 0.35)
+          ..strokeWidth = 2.4
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round;
 
-        final childPath = Path()
+        final subPath = Path()
           ..moveTo(pPos.dx, pPos.dy)
           ..quadraticBezierTo(
-            (pPos.dx + childPos.dx) / 2,
-            (pPos.dy + childPos.dy) / 2,
-            childPos.dx,
-            childPos.dy,
+            (pPos.dx + subPos.dx) / 2,
+            (pPos.dy + subPos.dy) / 2,
+            subPos.dx,
+            subPos.dy,
           );
-        canvas.drawPath(childPath, childEdgePaint);
-      }
-    }
+        canvas.drawPath(subPath, subEdgePaint);
 
-    // 5. Draw leaf sub-nodes (Tier 2 and above)
-    for (final p in pillars) {
-      final pColor = pillarColors[p.id] ?? AppColors.crimsonRed;
-      for (final child in (pillarChildren[p.id] ?? [])) {
-        if (nodePositions.containsKey(child.id)) {
-          final isExp = child.isExpansion ||
-              (child.colorHex != null &&
-                  child.colorHex!.toUpperCase().contains('F59E0B'));
-          final childColor = isExp ? const Color(0xFFF59E0B) : pColor;
-          _drawNode(
-            canvas,
-            nodePositions[child.id]!,
-            child.label,
-            tier: 2,
-            accentColor: childColor,
-            isExpansion: isExp,
+        // Find direct children of this sub-concept (Tier 3 detail leaves)
+        final leaves = nodes.where((n) => n.parentId == sub.id).toList();
+        final int lCount = leaves.length;
+
+        for (int k = 0; k < lCount; k++) {
+          final leaf = leaves[k];
+          final leafAngle = lCount == 1
+              ? subAngle
+              : (subAngle - 0.15) + (0.3 / (lCount - 1)) * k;
+
+          final leafPos = Offset(
+            center.dx + leafRadius * math.cos(leafAngle),
+            center.dy + leafRadius * math.sin(leafAngle),
           );
+          nodePositions[leaf.id] = leafPos;
+
+          // Draw fine connection from Sub-concept to Detail Leaf
+          final leafEdgePaint = Paint()
+            ..color = pColor.withValues(alpha: isDark ? 0.35 : 0.25)
+            ..strokeWidth = 1.6
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round;
+
+          final leafPath = Path()
+            ..moveTo(subPos.dx, subPos.dy)
+            ..quadraticBezierTo(
+              (subPos.dx + leafPos.dx) / 2,
+              (subPos.dy + leafPos.dy) / 2,
+              leafPos.dx,
+              leafPos.dy,
+            );
+          canvas.drawPath(leafPath, leafEdgePaint);
         }
       }
     }
 
-    // 6. Draw Tier 1 Pillar nodes
-    for (final p in pillars) {
-      final isExp = p.isExpansion ||
-          (p.colorHex != null &&
-              p.colorHex!.toUpperCase().contains('F59E0B'));
-      final pColor = isExp
-          ? const Color(0xFFF59E0B)
-          : (pillarColors[p.id] ?? AppColors.crimsonRed);
-      _drawNode(
-        canvas,
-        nodePositions[p.id]!,
-        p.label,
-        tier: 1,
-        accentColor: pColor,
-        isExpansion: isExp,
+    // 5. Position & connect Domain Expansions (Golden Amber)
+    for (int eIdx = 0; eIdx < expansions.length; eIdx++) {
+      final exp = expansions[eIdx];
+      final expAngle = (sectorAngle * eIdx) + (sectorAngle / 2) - (math.pi / 2);
+      const expRadius = 450.0;
+      final expPos = Offset(
+        center.dx + expRadius * math.cos(expAngle),
+        center.dy + expRadius * math.sin(expAngle),
       );
+      nodePositions[exp.id] = expPos;
+
+      // Draw dashed golden edge to root
+      final expPaint = Paint()
+        ..color = const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.6 : 0.45)
+        ..strokeWidth = 2.0
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawLine(center, expPos, expPaint);
     }
 
-    // 7. Draw Root node on top with glowing prominence
+    // 6. Draw all nodes in proper z-order (leaves -> sub-concepts -> pillars -> expansions -> root)
+
+    // A. Draw Tier 3 Detail Leaves
+    for (final n in nodes.where((n) => n.tier == 3 || n.id.contains('_leaf') || n.id.contains('_detail'))) {
+      if (nodePositions.containsKey(n.id)) {
+        _drawNode(
+          canvas,
+          nodePositions[n.id]!,
+          n.label,
+          tier: 3,
+          accentColor: const Color(0xFF2563EB),
+          isExpansion: false,
+        );
+      }
+    }
+
+    // B. Draw Tier 2 Sub-concepts
+    for (final n in nodes.where((n) => n.tier == 2 && !n.id.contains('_leaf') && !n.id.contains('_detail'))) {
+      if (nodePositions.containsKey(n.id)) {
+        _drawNode(
+          canvas,
+          nodePositions[n.id]!,
+          n.label,
+          tier: 2,
+          accentColor: const Color(0xFF059669),
+          isExpansion: false,
+        );
+      }
+    }
+
+    // C. Draw Tier 1 Pillars
+    for (final p in pillars) {
+      if (nodePositions.containsKey(p.id)) {
+        final pColor = pillarColors[p.id] ?? AppColors.crimsonRed;
+        _drawNode(
+          canvas,
+          nodePositions[p.id]!,
+          p.label,
+          tier: 1,
+          accentColor: pColor,
+          isExpansion: false,
+        );
+      }
+    }
+
+    // D. Draw Domain Expansions
+    for (final exp in expansions) {
+      if (nodePositions.containsKey(exp.id)) {
+        _drawNode(
+          canvas,
+          nodePositions[exp.id]!,
+          exp.label,
+          tier: 1,
+          accentColor: const Color(0xFFF59E0B),
+          isExpansion: true,
+        );
+      }
+    }
+
+    // E. Draw Root Node on top
     _drawNode(
       canvas,
       center,
@@ -463,11 +509,13 @@ class _HierarchicalMindMapPainter extends CustomPainter {
   }) {
     final isRoot = tier == 0;
     final isPillar = tier == 1;
+    final isLeaf = tier == 3;
 
-    final double fontSize = isRoot ? 14 : (isPillar ? 12 : 10.5);
-    final FontWeight fontWeight =
-        isRoot ? FontWeight.w800 : (isPillar ? FontWeight.w700 : FontWeight.w600);
-    final double maxBoxWidth = isRoot ? 190 : (isPillar ? 150 : 135);
+    final double fontSize = isRoot ? 14 : (isPillar ? 12 : (isLeaf ? 9.5 : 10.5));
+    final FontWeight fontWeight = isRoot
+        ? FontWeight.w800
+        : (isPillar ? FontWeight.w700 : (isLeaf ? FontWeight.w500 : FontWeight.w600));
+    final double maxBoxWidth = isRoot ? 200 : (isPillar ? 160 : (isLeaf ? 135 : 145));
     final isUrdu = RegExp(r'[\u0600-\u06FF]').hasMatch(label);
 
     final textSpan = TextSpan(
@@ -488,8 +536,8 @@ class _HierarchicalMindMapPainter extends CustomPainter {
       textAlign: TextAlign.center,
     )..layout(maxWidth: maxBoxWidth);
 
-    final padH = isRoot ? 22.0 : (isPillar ? 16.0 : 12.0);
-    final padV = isRoot ? 14.0 : (isPillar ? 10.0 : 8.0);
+    final padH = isRoot ? 22.0 : (isPillar ? 16.0 : (isLeaf ? 10.0 : 12.0));
+    final padV = isRoot ? 14.0 : (isPillar ? 10.0 : (isLeaf ? 6.0 : 8.0));
 
     final rect = Rect.fromCenter(
       center: offset,
@@ -498,7 +546,7 @@ class _HierarchicalMindMapPainter extends CustomPainter {
     );
     final rrect = RRect.fromRectAndRadius(
       rect,
-      Radius.circular(isRoot ? 18 : (isPillar ? 12 : 8)),
+      Radius.circular(isRoot ? 18 : (isPillar ? 12 : (isLeaf ? 6 : 8))),
     );
 
     // Ambient drop shadow
@@ -519,7 +567,9 @@ class _HierarchicalMindMapPainter extends CustomPainter {
           ? accentColor
           : (isExpansion
               ? (isDark ? const Color(0xFF1E1E2E) : const Color(0xFFFFFBEB))
-              : (isDark ? const Color(0xFF1E293B) : Colors.white));
+              : (isLeaf
+                  ? (isDark ? const Color(0xFF182234) : const Color(0xFFF8FAFC))
+                  : (isDark ? const Color(0xFF1E293B) : Colors.white)));
     canvas.drawRRect(rrect, fillPaint);
 
     // Node outline border
@@ -530,8 +580,10 @@ class _HierarchicalMindMapPainter extends CustomPainter {
               ? const Color(0xFFF59E0B)
               : (isPillar
                   ? accentColor
-                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))))
-      ..strokeWidth = isRoot ? 3.0 : (isExpansion ? 2.2 : (isPillar ? 2.0 : 1.2))
+                  : (isLeaf
+                      ? (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))
+                      : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)))))
+      ..strokeWidth = isRoot ? 3.0 : (isExpansion ? 2.2 : (isPillar ? 2.0 : (isLeaf ? 1.0 : 1.4)))
       ..style = PaintingStyle.stroke;
     canvas.drawRRect(rrect, borderPaint);
 
