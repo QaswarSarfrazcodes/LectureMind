@@ -59,3 +59,8 @@ lib/core/config/app_secrets_local.dart
 
 # Tool scripts (local development utilities, not needed in repo)
 /tool/
+
+# GitHub Actions workflows — requires 'workflow' PAT scope to push.
+# Add manually via GitHub web UI or use a PAT with workflow scope.
+# The deploy.yml file is on disk for reference: .github/workflows/deploy.yml
+/.github/
