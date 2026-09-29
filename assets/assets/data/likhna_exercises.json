@@ -1,0 +1,34 @@
+[
+  {
+    "id": "w-01",
+    "level": "L1",
+    "prompt_en": "Write in Urdu: 'I study every day.'",
+    "prompt_ur": "جملہ بنائیں: 'میں روزانہ پڑھتا ہوں' (یا پڑھتی ہوں)",
+    "sample_expected_answer": "میں روزانہ پڑھتا ہوں۔",
+    "focus_sounds": ["روزانہ میں 'و' کا اندراج"]
+  },
+  {
+    "id": "w-02",
+    "level": "L2",
+    "prompt_en": "Describe your morning routine in two sentences.",
+    "prompt_ur": "اپنی صبح کی روٹین دو جملوں میں لکھیں۔",
+    "sample_expected_answer": "میں صبح سویرے نماز کے لیے اٹھتا ہوں۔ اس کے بعد سیر کے لیے جاتا ہوں۔",
+    "focus_sounds": ["ص vs س (صبح)", "ز vs ذ (نماز)"]
+  },
+  {
+    "id": "w-03",
+    "level": "L3",
+    "prompt_en": "Explain why punctual assignment submission is important.",
+    "prompt_ur": "اسائنمنٹ بروقت جمع کروانے کی اہمیت پر تین جملے تحریر کریں۔",
+    "sample_expected_answer": "اسائنمنٹ وقت پر جمع کروانا ذمہ داری کا ثبوت ہے۔ اس سے طالب علم پر امتحانی دباؤ کم ہوتا ہے اور اساتذہ کا اعتماد بڑھتا ہے۔",
+    "focus_sounds": ["قواعد: فعل اور فاعل کی مطابقت"]
+  },
+  {
+    "id": "w-04",
+    "level": "L4",
+    "prompt_en": "Formal register rewrite: Convert casual texting style 'sir me kal class ni le skta' to a formal academic email sentence.",
+    "prompt_ur": "رسمی انداز میں تبدیلی: غیر رسمی جملے کو استاد کے لیے مودبانہ تحریر میں تبدیل کریں۔",
+    "sample_expected_answer": "محترم استاد صاحب! معذرت کے ساتھ، ضروری عذر کی بنا پر میں کل کلاس میں حاضر نہیں ہو سکوں گا۔",
+    "focus_sounds": ["رسمی آداب اور املا"]
+  }
+]
