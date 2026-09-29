@@ -1,0 +1,66 @@
+name: lecturemind
+description: "Apna Lecture, Apni Zubaan — LectureMind: AI-powered bilingual lecture companion (Android · iOS · Web)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ── State Management ────────────────────────────────────────────────────────
+  flutter_riverpod: ^2.6.1
+
+  # ── Navigation ──────────────────────────────────────────────────────────────
+  go_router: ^14.6.2
+
+  # ── Design / Typography ─────────────────────────────────────────────────────
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10+1
+
+  # ── Feature Packages ────────────────────────────────────────────────────────
+  table_calendar: ^3.1.3
+  intl: ^0.19.0
+  pdf: ^3.11.1
+  printing: ^5.13.3
+  file_picker: ^8.1.4
+  uuid: ^4.5.1
+  share_plus: ^10.1.4
+  path_provider: ^2.1.5
+  archive: ^4.3.0
+
+  # ── Networking & APIs ───────────────────────────────────────────────────────
+  dio: ^5.7.0
+  web_socket_channel: ^3.0.1
+
+  # ── Storage ─────────────────────────────────────────────────────────────────
+  shared_preferences: ^2.3.2
+  flutter_secure_storage: ^9.2.2      # Mobile only (guarded by kIsWeb)
+
+  # ── Audio / Voice ───────────────────────────────────────────────────────────
+  record: ^7.1.1                       # Microphone recording (mobile)
+  flutter_tts: ^4.2.5                 # TTS engine
+
+  # ── Connectivity ────────────────────────────────────────────────────────────
+  connectivity_plus: ^6.1.1
+
+  # ── Platform Utilities ──────────────────────────────────────────────────────
+  syncfusion_flutter_pdf: ^34.2.9
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/data/
+    - assets/app-logoandicon.svg
+    - assets/icon-mic-transcribe.svg
+    - assets/icon-quiz-test.svg
+    - assets/icon-security-shiel.svg
+    - assets/icon-summary-notes.svg
+    - assets/icon-urdu-lang.svg
