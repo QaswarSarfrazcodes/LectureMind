@@ -16,6 +16,11 @@
   <img src="https://img.shields.io/badge/Groq-GPT--OSS--120B-F55036?style=for-the-badge" alt="Groq" />
   <img src="https://img.shields.io/badge/UI_Style-Neumorphic_Dark_Navy-0F172A?style=for-the-badge" alt="Neumorphic" />
   <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License" />
+  <a href="https://qaswarsarfrazcodes.github.io/LectureMind/"><img src="https://img.shields.io/badge/🌐_Live_Demo-GitHub_Pages-brightgreen?style=for-the-badge" alt="Live Demo" /></a>
+</p>
+
+<p align="center">
+  🚀 <strong>Live Demo:</strong> <a href="https://qaswarsarfrazcodes.github.io/LectureMind/">https://qaswarsarfrazcodes.github.io/LectureMind/</a>
 </p>
 
 ---

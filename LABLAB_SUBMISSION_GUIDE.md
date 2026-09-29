@@ -78,7 +78,7 @@ Select these tags on the Lablab.ai project editor:
 ## 💻 4. Repository & Deployment URLs
 
 - **Public GitHub Repository:** `https://github.com/QaswarSarfrazcodes/LectureMind`
-- **Live Demo Web Platform:** Deploy via Firebase Hosting / Vercel using `DEPLOYMENT.md` guide
+- **Live Demo Web Platform:** [https://qaswarsarfrazcodes.github.io/LectureMind/](https://qaswarsarfrazcodes.github.io/LectureMind/)
 - **Android APK Downloads:** Available in repository releases or built via GitHub Actions CI/CD:
   - `app-arm64-v8a-release.apk` (Modern 64-bit Android smartphones)
   - `app-armeabi-v7a-release.apk` (Legacy 32-bit Android phones)
@@ -108,5 +108,5 @@ Select these tags on the Lablab.ai project editor:
 - [x] **DEPLOYMENT.md:** Full deployment guide for Firebase Hosting, Vercel, GitHub Pages, and Android APK builds.
 - [x] **GitHub Actions CI/CD:** `.github/workflows/deploy.yml` for automated builds on push.
 - [ ] **Android APKs:** Built via `flutter build apk --split-per-abi` and uploaded to GitHub Release.
-- [ ] **Live Web Demo URL:** Deployed to Firebase Hosting or Vercel.
+- [x] **Live Web Demo URL:** [https://qaswarsarfrazcodes.github.io/LectureMind/](https://qaswarsarfrazcodes.github.io/LectureMind/)
 - [ ] **3-Minute Demo Video:** Screen-recorded walkthrough uploaded to YouTube / Vimeo.
