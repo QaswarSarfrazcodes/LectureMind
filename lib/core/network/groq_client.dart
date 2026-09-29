@@ -61,6 +61,16 @@ class GroqClient {
     Language? language,
   }) async {
     final apiKey = _apiKey;
+    if (apiKey.isEmpty) {
+      final fallback = _generateFallbackResponse(
+        taskType: taskType,
+        userContent: userContent,
+        language: language ?? Language.english,
+        jsonMode: jsonMode,
+      );
+      return Result.success(fallback);
+    }
+
     // Token limits tuned per task type: notes/quiz need larger outputs
     final limit = maxTokens ?? _defaultTokensForTask(taskType, jsonMode);
     // Temperature: creative for chat, precise for JSON structured outputs
@@ -435,6 +445,15 @@ class GroqClient {
       return isUrdu
           ? 'معذرت، اس وقت اے آئی سرور سے رابطہ قائم نہیں ہو پا رہا ہے۔ برائے مہربانی اپنا انٹرنیٹ کنکشن چیک کر کے دوبارہ سوال ارسال کریں۔'
           : 'Unable to reach the AI engine right now. Please verify your internet connection and try sending your question again.';
+    }
+
+    // STT refinement fallback: return the raw transcript itself, never an error message!
+    if (taskType == AiTaskType.sttRefinement) {
+      final rawMatch = RegExp(r'"""([\s\S]*?)"""').firstMatch(userContent);
+      if (rawMatch != null && rawMatch.group(1) != null) {
+        return rawMatch.group(1)!.trim();
+      }
+      return userContent.trim();
     }
 
     return isUrdu

@@ -31,8 +31,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Verify that the title or initial greetings render on home screen (or age prompt dialog)
-    expect(find.textContaining('Student Profile & Age'), findsOneWidget);
+    // Verify that the title or initial greetings render on launch screen
+    expect(find.textContaining('LectureMind'), findsWidgets);
+    expect(find.textContaining('Continue as Guest'), findsOneWidget);
   });
 }
 

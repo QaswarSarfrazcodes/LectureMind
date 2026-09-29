@@ -319,6 +319,10 @@ class ProfileProgressScreen extends ConsumerWidget {
 
               // ── 5. Pedagogical Preferences (Language & Tone) ───────────────────
               _buildPreferencesCard(ref, settings, isDark),
+              const SizedBox(height: 18),
+
+              // ── 6. AI Engine & API Keys (AssemblyAI & Groq) ───────────────────
+              _buildApiKeysCard(context, ref, settings, isDark),
               const SizedBox(height: 28),
 
               // ── 7. Footer & Compliance Note ────────────────────────────────────
@@ -810,6 +814,236 @@ class ProfileProgressScreen extends ConsumerWidget {
                   ? Colors.white
                   : (isDark ? NeuColors.iceWhite : const Color(0xFF334155)),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── AI Engine & API Keys Card ──────────────────────────────────────────────
+  Widget _buildApiKeysCard(BuildContext context, WidgetRef ref, dynamic settings, bool isDark) {
+    final hasAssembly = (settings.assemblyAiApiKey as String).trim().isNotEmpty;
+    final hasGroq = (settings.groqApiKey as String).trim().isNotEmpty;
+
+    return NeuCard(
+      radius: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: NeuDecorations.circleRaised(isDark: isDark),
+                child: const Center(
+                  child: Icon(
+                    Icons.key_rounded,
+                    color: AppColors.crimsonRed,
+                    size: 18,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI API Keys (AssemblyAI & Groq)',
+                      style: AppTextStyles.title(isDark ? NeuColors.pureWhite : const Color(0xFF0F172A))
+                          .copyWith(fontSize: 14.5, fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      'Configure keys for real-time acoustic transcription & LLM synthesis',
+                      style: AppTextStyles.caption(isDark ? NeuColors.mutedBlue : const Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _showApiKeysModal(context, ref, settings, isDark),
+                icon: const Icon(Icons.edit_rounded, size: 14, color: AppColors.crimsonRed),
+                label: Text(
+                  hasAssembly && hasGroq ? 'Configured' : 'Configure',
+                  style: const TextStyle(color: AppColors.crimsonRed, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDark ? NeuColors.darkSunken : NeuColors.lightSunken,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        hasAssembly ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        size: 16,
+                        color: hasAssembly ? const Color(0xFF10B981) : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          hasAssembly ? 'AssemblyAI: Active' : 'AssemblyAI: Tap to Add',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: hasAssembly ? const Color(0xFF10B981) : (isDark ? Colors.white54 : Colors.black54),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDark ? NeuColors.darkSunken : NeuColors.lightSunken,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        hasGroq ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        size: 16,
+                        color: hasGroq ? const Color(0xFF10B981) : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          hasGroq ? 'Groq LLM: Active' : 'Groq LLM: Tap to Add',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: hasGroq ? const Color(0xFF10B981) : (isDark ? Colors.white54 : Colors.black54),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showApiKeysModal(BuildContext context, WidgetRef ref, dynamic settings, bool isDark) {
+    final assemblyCtrl = TextEditingController(text: settings.assemblyAiApiKey as String);
+    final groqCtrl = TextEditingController(text: settings.groqApiKey as String);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Configure AI API Keys',
+                style: AppTextStyles.title(isDark ? Colors.white : Colors.black87),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Keys are saved securely in your browser local storage.',
+                style: AppTextStyles.caption(isDark ? NeuColors.mutedBlue : const Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 20),
+              Text('AssemblyAI API Key (Voice STT)', style: AppTextStyles.caption(isDark ? Colors.white70 : Colors.black87)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: assemblyCtrl,
+                obscureText: true,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  hintText: 'Paste AssemblyAI API Key...',
+                  hintStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 13),
+                  filled: true,
+                  fillColor: isDark ? NeuColors.darkSunken : NeuColors.lightSunken,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Groq API Key (Fast LLM Reasoning)', style: AppTextStyles.caption(isDark ? Colors.white70 : Colors.black87)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: groqCtrl,
+                obscureText: true,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  hintText: 'gsk_... (Paste Groq API Key)',
+                  hintStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 13),
+                  filled: true,
+                  fillColor: isDark ? NeuColors.darkSunken : NeuColors.lightSunken,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Cancel', style: TextStyle(color: isDark ? NeuColors.mutedBlue : Colors.black54)),
+                  ),
+                  const SizedBox(width: 12),
+                  NeuButton(
+                    label: 'Save Keys',
+                    icon: Icons.check_rounded,
+                    isPrimary: true,
+                    height: 44,
+                    radius: 22,
+                    onPressed: () {
+                      ref.read(userSettingsProvider.notifier).updateAssemblyAiKey(assemblyCtrl.text.trim());
+                      ref.read(userSettingsProvider.notifier).updateGroqKey(groqCtrl.text.trim());
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('API Keys saved successfully!'),
+                          backgroundColor: Color(0xFF10B981),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

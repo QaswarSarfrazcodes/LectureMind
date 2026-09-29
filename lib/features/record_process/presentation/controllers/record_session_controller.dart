@@ -261,7 +261,12 @@ class RecordSessionController extends StateNotifier<RecordSessionState> {
         if (refined.startsWith('"""') && refined.endsWith('"""') && refined.length > 6) {
           refined = refined.substring(3, refined.length - 3).trim();
         }
-        return refined;
+        if (refined.isNotEmpty &&
+            !refined.toLowerCase().contains('network connection interrupted') &&
+            !refined.toLowerCase().contains('unable to reach') &&
+            !refined.contains('تعطل')) {
+          return refined;
+        }
       }
 
       // Gemini fallback
@@ -276,7 +281,11 @@ class RecordSessionController extends StateNotifier<RecordSessionState> {
         if (refined.startsWith('"""') && refined.endsWith('"""') && refined.length > 6) {
           refined = refined.substring(3, refined.length - 3).trim();
         }
-        return refined;
+        if (refined.isNotEmpty &&
+            !refined.toLowerCase().contains('network connection interrupted') &&
+            !refined.contains('تعطل')) {
+          return refined;
+        }
       }
     } catch (_) {}
 

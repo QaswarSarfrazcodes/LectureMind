@@ -249,8 +249,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: AppDimens.space24),
 
                     // Footer Link: Go to Sign Up
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           "Don't have an account? ",
