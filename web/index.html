@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LectureMind — Apna Lecture, Apni Zubaan. AI-powered bilingual lecture companion with real-time voice, smart notes, quizzes, and Urdu support.">
+  <meta name="keywords" content="LectureMind, AI tutor, lecture notes, Urdu, AssemblyAI, voice agent, study assistant">
+  <meta name="theme-color" content="#E50914">
+
+  <!-- Open Graph / Social -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="LectureMind — AI Lecture Companion">
+  <meta property="og:description" content="Apna Lecture, Apni Zubaan — Bilingual AI study assistant powered by AssemblyAI, Groq & Gemini.">
+
+  <!-- iOS PWA -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LectureMind">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon & Manifest -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="manifest" href="manifest.json">
+
+  <title>LectureMind — Apna Lecture, Apni Zubaan</title>
+  <style>
+    body {
+      background-color: #0F172A;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+    #loading-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #0F172A;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+    .neu-loader {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: #131D33;
+      box-shadow: -6px -6px 14px rgba(77, 126, 199, 0.18), 7px 7px 16px rgba(3, 6, 14, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .neu-spinner {
+      position: absolute;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      border-top-color: #E8192C;
+      animation: spin 1s linear infinite;
+    }
+    .neu-logo {
+      width: 40px;
+      height: 40px;
+    }
+    .neu-title {
+      margin-top: 20px;
+      color: #FFFFFF;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .neu-sub {
+      margin-top: 6px;
+      color: #8FA8CC;
+      font-size: 13px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-container">
+    <div class="neu-loader">
+      <div class="neu-spinner"></div>
+      <img src="favicon.png" class="neu-logo" alt="LectureMind" />
+    </div>
+    <div class="neu-title">LectureMind</div>
+    <div class="neu-sub">Apna Lecture, Apni Zubaan</div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var loader = document.getElementById('loading-container');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(function () { loader.remove(); }, 500);
+      }
+    });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(var i = 0; i < registrations.length; i++) {
+          registrations[i].unregister();
+        }
+      });
+    }
+
+    var _globalRecognition = null;
+    var _speechActive = false;
+    var _accumulatedTranscript = '';
+    var _interimTranscript = '';
+
+    // Robust Native Web Audio Recorder for AssemblyAI Universal-3.5 Pro
+    var _mediaStream = null;
+    var _mediaRecorder = null;
+    var _recordedAudioChunks = [];
+
+    window.startNativeAudioRecording = function() {
+      _recordedAudioChunks = [];
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return Promise.resolve(false);
+      }
+      return navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        _mediaStream = stream;
+        var mime = '';
+        if (typeof MediaRecorder !== 'undefined') {
+          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+            mime = 'audio/webm;codecs=opus';
+          } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+            mime = 'audio/webm';
+          } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+            mime = 'audio/mp4';
+          }
+        }
+        var options = mime ? { mimeType: mime } : {};
+        _mediaRecorder = new MediaRecorder(stream, options);
+        _mediaRecorder.ondataavailable = function(e) {
+          if (e.data && e.data.size > 0) {
+            _recordedAudioChunks.push(e.data);
+          }
+        };
+        _mediaRecorder.start(200);
+        return true;
+      }).catch(function(err) {
+        console.warn('Microphone getUserMedia error:', err);
+        return false;
+      });
+    };
+
+    window.stopNativeAudioRecording = function() {
+      return new Promise(function(resolve) {
+        if (!_mediaRecorder || _mediaRecorder.state === 'inactive') {
+          resolve('');
+          return;
+        }
+        _mediaRecorder.onstop = function() {
+          var mime = _mediaRecorder.mimeType || 'audio/webm';
+          var blob = new Blob(_recordedAudioChunks, { type: mime });
+          var reader = new FileReader();
+          reader.onloadend = function() {
+            var res = reader.result || '';
+            var base64 = res.indexOf(',') !== -1 ? res.split(',')[1] : res;
+            resolve(base64);
+          };
+          reader.readAsDataURL(blob);
+        };
+        try {
+          _mediaRecorder.stop();
+          if (_mediaStream) {
+            _mediaStream.getTracks().forEach(function(t) { t.stop(); });
+            _mediaStream = null;
+          }
+        } catch(e) {
+          resolve('');
+        }
+      });
+    };
+
+    window.getSpeechTranscript = function() {
+      return (_accumulatedTranscript + ' ' + _interimTranscript).trim();
+    };
+
+    window.startSpeechRecognition = function(lang, onResult, onError, onEnd) {
+      var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        if (onError) onError('Speech recognition not supported in this browser.');
+        return false;
+      }
+      try {
+        _speechActive = true;
+        _accumulatedTranscript = '';
+        _interimTranscript = '';
+        if (_globalRecognition) {
+          try { _globalRecognition.abort(); } catch(e) {}
+          _globalRecognition = null;
+        }
+
+        function createRecognizer() {
+          var rec = new SpeechRec();
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.maxAlternatives = 1;
+          rec.lang = (lang === 'ur' || lang === 'Urdu') ? 'ur-PK' : 'en-US';
+
+          rec.onresult = function(event) {
+            _interimTranscript = '';
+            for (var i = event.resultIndex; i < event.results.length; ++i) {
+              var segment = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                _accumulatedTranscript += segment.trim() + ' ';
+              } else {
+                _interimTranscript += segment;
+              }
+            }
+            var fullCurrent = (_accumulatedTranscript + _interimTranscript).trim();
+            if (fullCurrent && onResult) {
+              onResult(fullCurrent, false);
+            }
+          };
+
+          rec.onerror = function(event) {
+            if (event.error === 'no-speech') {
+              // Standard pause in speech — do NOT abort, keep listening!
+              return;
+            }
+            if (event.error === 'aborted') {
+              return;
+            }
+            console.warn('SpeechRecognition notice:', event.error);
+            if (onError && !_speechActive) onError(event.error || 'speech_error');
+          };
+
+          rec.onend = function() {
+            if (_speechActive) {
+              try {
+                rec.start();
+              } catch (e) {
+                setTimeout(function() {
+                  if (_speechActive) {
+                    _globalRecognition = createRecognizer();
+                    try { _globalRecognition.start(); } catch(_) {}
+                  }
+                }, 150);
+              }
+            } else {
+              if (onEnd) onEnd();
+            }
+          };
+
+          return rec;
+        }
+
+        _globalRecognition = createRecognizer();
+        _globalRecognition.start();
+        return true;
+      } catch (err) {
+        console.error('Speech start exception:', err);
+        if (onError) onError(String(err));
+        return false;
+      }
+    };
+
+    window.stopSpeechRecognition = function() {
+      _speechActive = false;
+      if (_globalRecognition) {
+        try { _globalRecognition.stop(); } catch(e) {}
+        _globalRecognition = null;
+      }
+      return (_accumulatedTranscript + ' ' + _interimTranscript).trim();
+    };
+
+    window.downloadImageBlob = function(base64Data, filename, mimeType) {
+      try {
+        var byteCharacters = atob(base64Data);
+        var byteNumbers = new Array(byteCharacters.length);
+        for (var i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        var byteArray = new Uint8Array(byteNumbers);
+
+        if (mimeType === 'image/jpeg' || filename.toLowerCase().endsWith('.jpg') || filename.toLowerCase().endsWith('.jpeg')) {
+          var img = new Image();
+          img.onload = function() {
+            var canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0F172A';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(function(jpgBlob) {
+              if (!jpgBlob) return;
+              var blobUrl = window.URL.createObjectURL(jpgBlob);
+              var a = document.createElement('a');
+              a.style.display = 'none';
+              a.href = blobUrl;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(function() {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(blobUrl);
+              }, 200);
+            }, 'image/jpeg', 0.96);
+          };
+          var rawBlob = new Blob([byteArray], { type: 'image/png' });
+          img.src = window.URL.createObjectURL(rawBlob);
+          return true;
+        }
+
+        var blob = new Blob([byteArray], { type: mimeType || 'image/png' });
+        var blobUrl = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(blobUrl);
+        }, 200);
+        return true;
+      } catch (e) {
+        console.error('Image download error:', e);
+        return false;
+      }
+    };
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
