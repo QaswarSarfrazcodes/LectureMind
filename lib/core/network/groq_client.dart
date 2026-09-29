@@ -327,7 +327,8 @@ class GroqClient {
     }
   }
 
-  /// High quality local fallback generator when user has not entered API key yet
+  /// Dynamic local fallback generator that extracts real notes, mind map, and quiz
+  /// directly from the user's speech transcript when offline or without an API key.
   String _generateFallbackResponse({
     AiTaskType? taskType,
     required String userContent,
@@ -336,128 +337,177 @@ class GroqClient {
   }) {
     final isUrdu = language == Language.urdu;
 
-    if (taskType == AiTaskType.notesGeneration || jsonMode && userContent.toLowerCase().contains('transcript')) {
-      if (isUrdu) {
-        return jsonEncode({
-          'title': 'اردو اور انگریزی کوڈ سوئچنگ کا تجزیہ',
-          'summary': 'یہ لیکچر پاکستانی طلبہ میں لسانی تنوع اور کمپیوٹر سائنس کی اصطلاحات کے باہمی امتزاج پر مبنی ہے۔',
-          'headings': [
-            {
-              'title': 'بنیادی تصورات',
-              'body': 'کلاس روم میں انگریزی اصطلاحات اور اردو گفتگو کا ربط طلبہ کی ذہنی فہم کو بہتر بناتا ہے۔',
-              'bullets': [
-                'اصطلاحات کا اصل مفہوم سمجھنا',
-                'مادری زبان میں تصورات کی وضاحت',
-                'تحقیقی سوالات پر تنقیدی بحث'
-              ],
-              'key_terms': ['کوڈ سوئچنگ (Code Switching)', 'لسانی روانی (Fluency)']
-            }
-          ],
-          'mind_map': {
-            'center': 'لیکچر خلاصہ',
-            'nodes': [
-              {'id': '1', 'label': 'لسانیات', 'parent': 'center'},
-              {'id': '2', 'label': 'تکنیکی فہم', 'parent': 'center'}
-            ]
-          }
+    // 1. Extract raw transcript from userContent
+    String transcript = userContent;
+    if (transcript.contains('Transcript to structure:')) {
+      transcript = transcript.split('Transcript to structure:').last.trim();
+    } else if (transcript.contains('Lecture Material & Transcript:')) {
+      transcript = transcript.split('Lecture Material & Transcript:').last.trim();
+    } else if (transcript.contains('"""')) {
+      final match = RegExp(r'"""([\s\S]*?)"""').firstMatch(transcript);
+      if (match != null && match.group(1) != null) {
+        transcript = match.group(1)!.trim();
+      }
+    }
+
+    // STT refinement fallback: return the raw transcript itself
+    if (taskType == AiTaskType.sttRefinement) {
+      return transcript.isNotEmpty ? transcript : userContent.trim();
+    }
+
+    // Clean up transcript
+    final clean = transcript.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final sentences = clean
+        .split(RegExp(r'(?<=[.!?۔\n])\s+'))
+        .map((s) => s.trim())
+        .where((s) => s.length > 5)
+        .toList();
+
+    // Derive topic / title from user's meaningful words
+    final words = clean.split(' ').where((w) => w.length > 2).toList();
+    final meaningfulWords = words.where((w) {
+      final low = w.toLowerCase().replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+      return !['the', 'and', 'this', 'that', 'with', 'from', 'have', 'were', 'which', 'about', 'today', 'lecture', 'student', 'class', 'hello', 'good', 'morning', 'afternoon', 'we', 'are', 'is', 'in', 'on', 'for', 'to', 'of', 'a', 'an'].contains(low);
+    }).toList();
+
+    String lectureTitle = meaningfulWords.length >= 2
+        ? meaningfulWords.take(4).map((w) => w.length > 1 ? '${w[0].toUpperCase()}${w.substring(1)}' : w).join(' ')
+        : (words.isNotEmpty ? words.take(4).join(' ') : (isUrdu ? 'لیکچر کا خلاصہ' : 'Lecture Synthesis'));
+    if (lectureTitle.length < 4) {
+      lectureTitle = isUrdu ? 'تعلیمی لیکچر خلاصہ' : 'Academic Lecture Synthesis';
+    }
+
+    // ── Dynamic Notes & Mind Map Generation ─────────────────────────────────
+    if (taskType == AiTaskType.notesGeneration ||
+        (jsonMode && (userContent.toLowerCase().contains('transcript') || userContent.toLowerCase().contains('structure')))) {
+      final summary = sentences.length >= 2
+          ? sentences.take(2).join(' ')
+          : (clean.isNotEmpty ? clean : (isUrdu ? 'لیکچر کے اہم نکات کا تفصیلی جائزہ' : 'Comprehensive breakdown of topics covered in this lecture.'));
+
+      // Divide sentences into 2 or 3 thematic sections
+      final chunkCount = (sentences.length / 3).clamp(1, 3).toInt();
+      final headings = <Map<String, dynamic>>[];
+      final mindMapNodes = <Map<String, dynamic>>[];
+
+      int sIndex = 0;
+      for (int i = 0; i < chunkCount; i++) {
+        final secSentences = <String>[];
+        while (sIndex < sentences.length && secSentences.length < 3) {
+          secSentences.add(sentences[sIndex]);
+          sIndex++;
+        }
+        if (secSentences.isEmpty && sIndex < sentences.length) {
+          secSentences.add(sentences[sIndex++]);
+        }
+        if (secSentences.isEmpty && sentences.isNotEmpty) {
+          secSentences.add(sentences[0]);
+        }
+
+        final secWords = secSentences.join(' ').split(' ').where((w) => w.length > 3).toList();
+        final secTitleWords = secWords.take(4).map((w) => w.length > 1 ? '${w[0].toUpperCase()}${w.substring(1)}' : w).join(' ');
+        final secTitle = secTitleWords.isNotEmpty ? '${i + 1}. $secTitleWords' : '${i + 1}. Core Concept ${i + 1}';
+
+        final secBody = secSentences.isNotEmpty ? secSentences.join(' ') : 'Key discussions and analytical insights.';
+        final bullets = secSentences.map((s) => s.length > 80 ? '${s.substring(0, 77)}...' : s).toList();
+        final keyTerms = secWords.take(3).toList();
+
+        headings.add({
+          'title': secTitle,
+          'body': secBody,
+          'bullets': bullets.isNotEmpty ? bullets : ['Critical analysis of lecture principles', 'Theoretical implications and framework'],
+          'key_terms': keyTerms.isNotEmpty ? keyTerms : ['Analysis', 'Concept'],
         });
+
+        // Add to mind map
+        final secId = '${i + 1}';
+        mindMapNodes.add({
+          'id': secId,
+          'label': secTitleWords.isNotEmpty ? secTitleWords : 'Topic ${i + 1}',
+          'parent': 'center',
+        });
+
+        // Add subnodes for this section (4-tier hierarchy)
+        for (int k = 0; k < keyTerms.length && k < 2; k++) {
+          final leafId = '${secId}_$k';
+          mindMapNodes.add({
+            'id': leafId,
+            'label': keyTerms[k],
+            'parent': secId,
+          });
+          if (bullets.isNotEmpty && k < bullets.length) {
+            final bulletWord = bullets[k].split(' ').take(3).join(' ');
+            if (bulletWord.isNotEmpty) {
+              mindMapNodes.add({
+                'id': '${leafId}_sub',
+                'label': bulletWord,
+                'parent': leafId,
+              });
+            }
+          }
+        }
       }
 
       return jsonEncode({
-        'title': 'Lecture Notes: Core Concepts & Architecture',
-        'summary': 'A structured synthesis of the key theoretical points and system design discussed in this session.',
-        'headings': [
-          {
-            'title': '1. Foundational Architecture',
-            'body': 'The system emphasizes Clean Architecture with unidirectional data flow and swappable vendor adapters.',
-            'bullets': [
-              'Domain layer enforces pure business contracts without framework dependencies',
-              'Data layer encapsulates remote REST and WebSocket endpoints',
-              'Presentation layer is strictly reactive, consuming Riverpod state'
-            ],
-            'key_terms': ['Clean Architecture', 'Unidirectional Flow', 'Repository Pattern']
-          },
-          {
-            'title': '2. Real-Time Streaming & AI Integration',
-            'body': 'Voice capture is piped directly to low-latency transcription, while LLM reasoning is handled asynchronously.',
-            'bullets': [
-              'Sub-second partial transcripts provide immediate user feedback',
-              'Structured JSON outputs ensure reliable notes and quiz schema parsing',
-              'Strict RAG grounding prevents factual hallucinations'
-            ],
-            'key_terms': ['Universal-3 Pro', 'RAG Grounding', 'In-Context Synthesis']
-          }
-        ],
+        'title': lectureTitle,
+        'summary': summary,
+        'headings': headings,
         'mind_map': {
-          'center': 'Core Architecture',
-          'nodes': [
-            {'id': '1', 'label': 'Clean Architecture', 'parent': 'center'},
-            {'id': '2', 'label': 'Domain Layer', 'parent': '1'},
-            {'id': '3', 'label': 'Data Layer', 'parent': '1'},
-            {'id': '4', 'label': 'Speech & Reasoning', 'parent': 'center'},
-            {'id': '5', 'label': 'AssemblyAI STT', 'parent': '4'},
-            {'id': '6', 'label': 'Groq LLM', 'parent': '4'}
-          ]
+          'center': lectureTitle,
+          'nodes': mindMapNodes,
         }
       });
     }
 
+    // ── Dynamic Socratic Quiz Generation ────────────────────────────────────
     if (taskType == AiTaskType.quizGeneration) {
-      return jsonEncode({
-        'questions': [
-          {
-            'type': 'mcq',
-            'question': 'What is the primary role of the Domain Layer in Clean Architecture?',
-            'options': [
-              'To contain business entities and pure use case contracts',
-              'To render Flutter UI widgets',
-              'To make direct HTTP network requests',
-              'To manage database migrations'
-            ],
-            'correct_answer': 'To contain business entities and pure use case contracts',
-            'explanation': 'The domain layer is completely decoupled from UI and external framework packages.'
-          },
-          {
-            'type': 'mcq',
-            'question': 'How does LectureMind prevent AI hallucinations during lecture chat?',
-            'options': [
-              'By enforcing strict RAG grounding in the transcript and explicit refusal rules',
-              'By disabling all Q&A capabilities',
-              'By searching Google in the background',
-              'By using random number generators'
-            ],
-            'correct_answer': 'By enforcing strict RAG grounding in the transcript and explicit refusal rules',
-            'explanation': 'System prompts require the model to cite only transcript facts and refuse external questions.'
-          },
-          {
-            'type': 'short_answer',
-            'question': 'Why are threads lighter than full processes during context switches?',
-            'options': [],
-            'correct_answer': 'Threads share virtual memory address space, so page tables do not need to be flushed.',
-            'explanation': 'Process switches require TLB flushes and memory re-mapping.'
-          }
-        ]
-      });
-    }
-
-    // Chat Q&A offline / fallback response
-    if (taskType == AiTaskType.chatQa) {
-      return isUrdu
-          ? 'معذرت، اس وقت اے آئی سرور سے رابطہ قائم نہیں ہو پا رہا ہے۔ برائے مہربانی اپنا انٹرنیٹ کنکشن چیک کر کے دوبارہ سوال ارسال کریں۔'
-          : 'Unable to reach the AI engine right now. Please verify your internet connection and try sending your question again.';
-    }
-
-    // STT refinement fallback: return the raw transcript itself, never an error message!
-    if (taskType == AiTaskType.sttRefinement) {
-      final rawMatch = RegExp(r'"""([\s\S]*?)"""').firstMatch(userContent);
-      if (rawMatch != null && rawMatch.group(1) != null) {
-        return rawMatch.group(1)!.trim();
+      final questions = <Map<String, dynamic>>[];
+      for (int i = 0; i < sentences.length && i < 4; i++) {
+        final sentence = sentences[i];
+        if (sentence.length < 15) continue;
+        questions.add({
+          'type': 'mcq',
+          'question': isUrdu
+              ? 'لیکچر کے مطابق، مندرجہ ذیل میں سے کون سا بیان درست ہے؟'
+              : 'Based on the lecture discussion, which statement is accurately supported?',
+          'options': [
+            sentence,
+            'This statement was explicitly contradicted during the lecture',
+            'No experimental evidence or data was presented for this hypothesis',
+            'This concept is outside the analytical scope of this session'
+          ],
+          'correct_answer': sentence,
+          'explanation': 'Directly derived from the recorded lecture transcript: "$sentence"'
+        });
       }
-      return userContent.trim();
+
+      if (questions.isEmpty) {
+        questions.add({
+          'type': 'mcq',
+          'question': 'What is the primary topic addressed in this lecture?',
+          'options': [
+            lectureTitle,
+            'Unrelated industry overview',
+            'Introductory syllabus review',
+            'Historical general context'
+          ],
+          'correct_answer': lectureTitle,
+          'explanation': 'The lecture focuses primarily on $lectureTitle.'
+        });
+      }
+
+      return jsonEncode({'questions': questions});
     }
 
-    return isUrdu
-        ? 'معذرت، انٹرنیٹ کنکشن میں تعطل کی وجہ سے جواب موصول نہیں ہوا۔'
-        : 'Network connection interrupted. Please check your internet and retry.';
+    // ── Chat Q&A Fallback ───────────────────────────────────────────────────
+    if (taskType == AiTaskType.chatQa) {
+      if (sentences.isNotEmpty) {
+        return 'Based on the lecture recording on "$lectureTitle":\n\n'
+               '• Key insight: ${sentences.first}\n\n'
+               '• Additional context: ${sentences.length > 1 ? sentences[1] : sentences.first}';
+      }
+      return 'The lecture covers $lectureTitle. You can ask specific questions about the recorded topics.';
+    }
+
+    return clean;
   }
 }
